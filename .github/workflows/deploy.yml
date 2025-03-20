@@ -1,4 +1,4 @@
-name: Keep Streamlit App Awake
+name: Keep Streamlit App Awake and Load Secrets
 
 on:
   schedule:
@@ -13,3 +13,32 @@ jobs:
       - name: Send request to keep app awake
         run: |
           curl -s -o /dev/null https://homesafe.streamlit.app/
+
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'  # Use your project's Python version
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Create .env file
+        run: |
+          echo "EMAIL_ADDRESS=${{ secrets.EMAIL_ADDRESS }}" >> .env
+          echo "EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }}" >> .env
+
+      - name: Debug environment variables
+        run: |
+          cat .env
+
+      - name: Start Streamlit app
+        run: |
+          streamlit run src/backend/app.py

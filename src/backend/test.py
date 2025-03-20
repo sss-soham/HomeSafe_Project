@@ -11,6 +11,11 @@ from PIL import Image
 import io
 import base64
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ✅ Set page config FIRST before any other code
 st.set_page_config(page_title="HomeSafe", layout="wide", page_icon="🏠")
@@ -32,6 +37,24 @@ except ImportError as e:
     st.error(f"Import error: {e}")
     st.info("Please ensure all required modules are in the correct location.")
 
+# Initialize session state variables if they don't exist yet
+if 'has_analysis' not in st.session_state:
+    st.session_state.has_analysis = False
+if 'severity' not in st.session_state:
+    st.session_state.severity = None
+if 'severity_description' not in st.session_state:
+    st.session_state.severity_description = None
+if 'length' not in st.session_state:
+    st.session_state.length = 0
+if 'width' not in st.session_state:
+    st.session_state.width = 0
+if 'original_image_path' not in st.session_state:
+    st.session_state.original_image_path = None
+if 'edge_image_path' not in st.session_state:
+    st.session_state.edge_image_path = None
+if 'has_crack' not in st.session_state:
+    st.session_state.has_crack = False
+
 # Function to determine severity based on crack dimensions
 def analyze_severity(length, width):
     """
@@ -49,15 +72,22 @@ def analyze_severity(length, width):
     else:
         return "Low", "Minor crack, monitor for changes"
 
-# Function to send email report
+#Email Sending
 def send_email_report(user_email, user_name, address, image_path, edge_image_path, severity, severity_description, length, width):
     """
     Send an email report to the user with the analysis results.
     """
     try:
-        # Email configuration
-        sender_email = "soham.sakunde@gmail.com"  # Replace with your service email
-        password = ""  # Replace with your app password
+        # ✅ Use environment variables for email credentials
+        sender_email = os.getenv("EMAIL_ADDRESS")
+        password = os.getenv("EMAIL_PASSWORD")
+
+        # Debug prints to verify the environment variables are loaded correctly
+        #st.write(f"Using email: {sender_email}")
+        
+        if not sender_email or not password:
+            st.error("Email credentials are missing. Please check your .env file.")
+            return False
 
         # Create message
         msg = MIMEMultipart()
@@ -85,38 +115,37 @@ def send_email_report(user_email, user_name, address, image_path, edge_image_pat
         <h3>Recommendations:</h3>
         <p>{get_recommendations(severity)}</p>
 
-        <p>For more information or to schedule a professional inspection, please contact our support team.</p>
-
         <p>Best regards,<br>
         HomeSafe AI Team</p>
         </body>
         </html>
         """
-
         msg.attach(MIMEText(body, 'html'))
 
-        # Attach the original image
+        # ✅ Attach the original image
         with open(image_path, 'rb') as img_file:
             img_data = img_file.read()
             img = MIMEImage(img_data)
             img.add_header('Content-Disposition', 'attachment', filename='original_image.jpg')
             msg.attach(img)
 
-        # Attach the edge detection image
+        # ✅ Attach the edge detection image
         with open(edge_image_path, 'rb') as img_file:
             img_data = img_file.read()
             img = MIMEImage(img_data)
             img.add_header('Content-Disposition', 'attachment', filename='edge_detection.jpg')
             msg.attach(img)
 
-        # Send email
+        # ✅ Send email using SMTP
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
             server.login(sender_email, password)
             server.send_message(msg)
 
         return True
+    
     except Exception as e:
-        print(f"Email sending failed: {e}")
+        st.error(f"Failed to send email: {e}")
+        st.error(f"Error details: {str(e)}")
         return False
 
 # Function to get recommendations based on severity
@@ -208,13 +237,20 @@ def local_preprocess_image(image):
 # Load the logo image
 project_root = os.path.dirname(parent_dir)
 logo_path = os.path.join(project_root, "assets", "logo.png")
-logo_image = Image.open(logo_path)
+try:
+    logo_image = Image.open(logo_path)
+except Exception as e:
+    st.warning(f"Could not load logo: {e}")
+    logo_image = None
 
 # Streamlit UI
 col1, col2 = st.columns([1, 3])
 
 with col1:
-    st.image(logo_image, width=250)  # Display the logo
+    if logo_image is not None:
+        st.image(logo_image, width=250)  # Display the logo
+    else:
+        st.write("HomeSafe")
 
 with col2:
     st.title("HomeSafe: AI-Powered Housing Inspection")
@@ -234,31 +270,20 @@ with col3:
         phone = st.text_input("Phone Number")
         address = st.text_area("Property Address")
 
-        # Conditionally display the file uploader
-        if name and email and address:
-            uploaded_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
+        # File uploader
+        uploaded_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
 
         submit_button = st.form_submit_button(label='Analyze Image')
 
-# Additional information about HomeSafe
-# if 'submit_button' not in locals() or not submit_button:
-#     st.sidebar.title("About HomeSafe")
-#     st.sidebar.info(
-#         "HomeSafe AI provides advanced building inspection technology to detect and analyze structural issues in your property. "
-#         "Our AI-powered system helps you monitor and maintain your home with ease and confidence."
-#     )
+# Display results in the second column
+with col4:
+    st.subheader("Analysis Results")
+    
+    # Create tabs for different views
+    tab1, tab2, tab3 = st.tabs(["Original Image", "Edge Detection", "Report"])
 
-# Define variable to use outside the try block
-edges = None
-
-# Process the image and display results
-if submit_button and uploaded_file is not None:
-    with col4:
-        st.subheader("Analysis Results")
-
-        # Create tabs for different views
-        tab1, tab2, tab3 = st.tabs(["Original Image", "Edge Detection", "Report"])
-
+    # Process the image if the button is clicked and an image is uploaded
+    if submit_button and uploaded_file is not None:
         try:
             # Display original image
             image = Image.open(uploaded_file)
@@ -267,6 +292,7 @@ if submit_button and uploaded_file is not None:
 
             # Save the original image
             original_image_path = save_temp_image(image, f"original_{uploaded_file.name}")
+            st.session_state.original_image_path = original_image_path
 
             # Convert PIL Image to numpy array for OpenCV
             image_np = np.array(image)
@@ -285,13 +311,14 @@ if submit_button and uploaded_file is not None:
 
             # Determine if there's a crack
             has_crack = confidence > 0.5
+            st.session_state.has_crack = has_crack
 
             # Process only if crack is detected
             if has_crack:
                 # Try to use the imported edge detection function
                 try:
                     edges = perform_edge_detection(original_image_path,
-                                                   os.path.join(parent_dir, "temp_images", f"edges_{uploaded_file.name}"))
+                                                os.path.join(parent_dir, "temp_images", f"edges_{uploaded_file.name}"))
                     # Read back the saved edge image
                     edge_image_path = os.path.join(parent_dir, "temp_images", f"edges_{uploaded_file.name}")
                     edges = cv2.imread(edge_image_path, cv2.IMREAD_GRAYSCALE)
@@ -300,47 +327,69 @@ if submit_button and uploaded_file is not None:
                     edges = local_edge_detection(image_np)
                     edge_image_path = save_temp_image(edges, f"edges_{uploaded_file.name}")
 
+                st.session_state.edge_image_path = edge_image_path
+
                 # Display edge detection image
                 with tab2:
                     st.image(edges, caption="Edge Detection", use_column_width=True)
 
                 # Measure crack dimensions
                 length, width = measure_crack_dimensions(edges)
+                st.session_state.length = length
+                st.session_state.width = width
 
                 # Analyze severity
                 severity, severity_description = analyze_severity(length, width)
+                st.session_state.severity = severity
+                st.session_state.severity_description = severity_description
 
-                # Display report
-                with tab3:
-                    st.markdown(f"### Crack Analysis Report")
-                    st.markdown(f"**Severity Level:** {severity}")
-                    st.markdown(f"**Assessment:** {severity_description}")
-                    st.markdown(f"**Crack Length:** {length:.2f} pixels")
-                    st.markdown(f"**Crack Width:** {width:.2f} pixels")
-
-                    st.markdown("### Recommendations")
-                    st.markdown(get_recommendations(severity))
-
-                    # Send email report
-                    if st.button("Send Report to Email"):
-                        if send_email_report(email, name, address, original_image_path, edge_image_path,
-                                         severity, severity_description, length, width):
-                            st.success(f"Report successfully sent to {email}")
-                        else:
-                            st.error("Failed to send email. Please try again later.")
-                            st.info("Note: To enable email functionality, update the sender_email and password in the code.")
+                # Mark that we have analysis results
+                st.session_state.has_analysis = True
             else:
                 with tab2:
                     st.info("No cracks detected in the image.")
 
-                with tab3:
-                    st.markdown("### Crack Analysis Report")
-                    st.success("No cracks detected in the image.")
-                    st.markdown("Your property appears to be in good condition based on this image.")
+                # Mark that we have analysis but no cracks
+                st.session_state.has_analysis = True
+                st.session_state.severity = "None"
+                st.session_state.severity_description = "No cracks detected"
+                st.session_state.length = 0
+                st.session_state.width = 0
 
         except Exception as e:
             st.error(f"An error occurred during processing: {e}")
             st.info("Please try again with a different image.")
+
+    # Display the report tab content based on session state
+    if st.session_state.has_analysis:
+        with tab3:
+            st.markdown(f"### Crack Analysis Report")
+            
+            if st.session_state.has_crack:
+                st.markdown(f"**Severity Level:** {st.session_state.severity}")
+                st.markdown(f"**Assessment:** {st.session_state.severity_description}")
+                st.markdown(f"**Crack Length:** {st.session_state.length:.2f} pixels")
+                st.markdown(f"**Crack Width:** {st.session_state.width:.2f} pixels")
+                
+                st.markdown("### Recommendations")
+                st.markdown(get_recommendations(st.session_state.severity))
+                
+                # Send email report button
+                if st.button("Send Report to Email"):
+                    if send_email_report(email, name, address, 
+                                      st.session_state.original_image_path, 
+                                      st.session_state.edge_image_path,
+                                      st.session_state.severity, 
+                                      st.session_state.severity_description, 
+                                      st.session_state.length, 
+                                      st.session_state.width):
+                        st.success(f"Report successfully sent to {email}")
+                    else:
+                        st.error("Failed to send email. Please try again later.")
+                        st.info("If you continue to have problems, please check your email credentials in the .env file.")
+            else:
+                st.success("No cracks detected in the image.")
+                st.markdown("Your property appears to be in good condition based on this image.")
 
 # Add a footer
 st.markdown("---")

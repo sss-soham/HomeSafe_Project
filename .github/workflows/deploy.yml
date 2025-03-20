@@ -3,7 +3,7 @@ name: Keep Streamlit App Awake and Load Secrets
 on:
   schedule:
     - cron: '*/5 * * * *'  # Runs every 5 minutes
-  workflow_dispatch: # Allows you to manually trigger the workflow
+  workflow_dispatch:
 
 jobs:
   keep-awake:
@@ -24,7 +24,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1 libglib2.0-0
+          sudo apt-get install -y libgl1-mesa-glx libglib2.0-0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -34,15 +34,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-
-      - name: Create .env file
-        run: |
-          echo "EMAIL_ADDRESS=${{ secrets.EMAIL_ADDRESS }}" >> .env
-          echo "EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }}" >> .env
-
-      - name: Debug environment variables
-        run: |
-          cat .env
 
       - name: Start Streamlit app
         run: |

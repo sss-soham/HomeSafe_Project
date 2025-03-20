@@ -79,8 +79,10 @@ def send_email_report(user_email, user_name, address, image_path, edge_image_pat
     """
     try:
         # ✅ Use environment variables for email credentials
-        sender_email = os.getenv("EMAIL_ADDRESS")
-        password = os.getenv("EMAIL_PASSWORD")
+        # sender_email = os.getenv("EMAIL_ADDRESS")
+        # password = os.getenv("EMAIL_PASSWORD")
+        sender_email = st.secrets["email"]["address"]
+        password = st.secrets["email"]["password"]
 
         # Debug prints to verify the environment variables are loaded correctly
         #st.write(f"Using email: {sender_email}")

@@ -1,4 +1,4 @@
-name: Keep Streamlit App Awake and Load Secrets
+name: Keep Streamlit App Awake
 
 on:
   schedule:
@@ -13,28 +13,3 @@ jobs:
       - name: Send request to keep app awake
         run: |
           curl -s -o /dev/null https://homesafe.streamlit.app/
-
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-glx libglib2.0-0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-
-      - name: Start Streamlit app
-        run: |
-          streamlit run src/backend/app.py
